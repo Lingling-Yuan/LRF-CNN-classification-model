@@ -2,9 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-# DropConnect Layer
 class DropConnect(nn.Module):
+    """DropConnect Layer"""
     def __init__(self, p):
         super(DropConnect, self).__init__()
         self.p = p
@@ -17,58 +16,83 @@ class DropConnect(nn.Module):
         scale = 1.0 / (1.0 - self.p)
         return mask * x * scale
 
+class DepthwiseSeparableConv2d(nn.Module):
+    """Depthwise Separable Convolution Layer"""
+    def __init__(self, in_channels, out_channels, kernel_size, stride=1, padding=0, dilation=1):
+        super(DepthwiseSeparableConv2d, self).__init__()
+        self.depthwise = nn.Conv2d(
+            in_channels,
+            in_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=in_channels
+        )
+        self.pointwise = nn.Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=1,
+            stride=1,
+            padding=0
+        )
 
-# LRFBlock
+    def forward(self, x):
+        out = self.depthwise(x)
+        out = self.pointwise(out)
+        return out
+
 class LRFBlock(nn.Module):
+    """Local Receptive Field (LRF) Block"""
     def __init__(self, in_channels, out_channels, stride=1, scale=0.1):
         super(LRFBlock, self).__init__()
         self.branch0 = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, 1, stride),
+            DepthwiseSeparableConv2d(in_channels, out_channels, 1, stride),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=(3, 3), stride=stride, padding=1, dilation=1),
+            DepthwiseSeparableConv2d(out_channels, out_channels, 3, stride, padding=1),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True)
         )
 
         self.branch1 = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, 1, stride),
+            DepthwiseSeparableConv2d(in_channels, out_channels, 1, stride),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=(3, 3), stride=stride, padding=1),
+            DepthwiseSeparableConv2d(out_channels, out_channels, 3, stride, padding=1),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=(3, 3), stride=stride, padding=3, dilation=3),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=stride, padding=3, dilation=3),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True)
         )
 
         self.branch2 = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, 1, stride),
+            DepthwiseSeparableConv2d(in_channels, out_channels, 1, stride),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=(5, 5), stride=stride, padding=2),
+            DepthwiseSeparableConv2d(out_channels, out_channels, 5, stride, padding=2),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=(3, 3), stride=stride, padding=3, dilation=3),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=stride, padding=3, dilation=3),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True)
         )
 
         self.branch3 = nn.Sequential(
-            nn.Conv2d(in_channels, out_channels, 1, stride),
+            DepthwiseSeparableConv2d(in_channels, out_channels, 1, stride),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=(5, 5), stride=stride, padding=2),
+            DepthwiseSeparableConv2d(out_channels, out_channels, 5, stride, padding=2),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=(3, 3), stride=stride, padding=5, dilation=5),
+            nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=stride, padding=5, dilation=5),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True)
         )
 
-        self.conv_linear = nn.Conv2d(4 * out_channels, out_channels, 1, stride)
-        self.shortcut = nn.Conv2d(in_channels, out_channels, 1, stride)
+        self.conv_linear = DepthwiseSeparableConv2d(4 * out_channels, out_channels, 1, stride)
+        self.shortcut = DepthwiseSeparableConv2d(in_channels, out_channels, 1, stride)
         self.bn_shortcut = nn.BatchNorm2d(out_channels)
         self.scale = scale
 
@@ -88,9 +112,8 @@ class LRFBlock(nn.Module):
 
         return out
 
-
-# LRF-CNN Model
 class LRFCNN(nn.Module):
+    """LRFCNN Model"""
     def __init__(self, num_classes=5, dropconnect_prob=0.5):
         super(LRFCNN, self).__init__()
 

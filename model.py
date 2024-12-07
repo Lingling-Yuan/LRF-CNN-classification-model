@@ -43,7 +43,7 @@ class DepthwiseSeparableConv2d(nn.Module):
         return out
 
 class LRFBlock(nn.Module):
-    """Local Receptive Field (LRF) Block"""
+    """Lightweight Receptive Field (LRF) Block"""
     def __init__(self, in_channels, out_channels, stride=1, scale=0.1):
         super(LRFBlock, self).__init__()
         self.branch0 = nn.Sequential(
